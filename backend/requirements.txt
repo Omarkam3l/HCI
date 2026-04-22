@@ -3,3 +3,7 @@ pyttsx3
 openai-whisper
 requests
 Pillow
+flask
+flask-cors
+groq
+python-dotenv

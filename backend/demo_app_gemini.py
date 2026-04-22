@@ -17,10 +17,19 @@ from PIL import Image
 from io import BytesIO
 
 # ── API Configuration ────────────────────────────────────────────────────────
-GROQ_API_KEY  = "YOUR_GROQ_API_KEY_HERE"   # https://console.groq.com (free)
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "your_groq_api_key_here")
+HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "your_huggingface_api_key_here")
 GROQ_API_URL  = "https://api.groq.com/openai/v1/chat/completions"
 CHAT_MODEL    = "llama3-70b-8192"
 VISION_MODEL  = "meta-llama/llama-4-scout-17b-16e-instruct"
+# Using a working Arabic TTS model from Hugging Face
+ARABIC_TTS_URL = "https://api-inference.huggingface.co/models/facebook/mms-tts-ara"
 
 
 # ── Whisper (lazy-loaded on first use) ───────────────────────────────────────
@@ -64,6 +73,54 @@ def _tts(text: str) -> str | None:
         return path
     except Exception as e:
         print(f"[TTS] Error: {e}")
+        return None
+
+def _arabic_tts(text: str) -> bytes | None:
+    """
+    Arabic TTS using Groq's Orpheus model.
+    High-quality Saudi Arabic voice via Groq API.
+    """
+    if not text:
+        return None
+    try:
+        from groq import Groq
+        from pathlib import Path
+        import tempfile
+        
+        print(f"[Orpheus TTS] Generating speech with Groq for: {text[:50]}...")
+        
+        # Initialize Groq client
+        client = Groq(api_key=GROQ_API_KEY)
+        
+        # Create temporary file for audio
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+        
+        # Generate speech using Groq's Orpheus model
+        response = client.audio.speech.create(
+            model="canopylabs/orpheus-arabic-saudi",
+            voice="abdullah",
+            response_format="wav",
+            input=text,
+        )
+        
+        # Stream to file
+        response.write_to_file(temp_path)
+        
+        # Read the audio file
+        with open(temp_path, 'rb') as f:
+            audio_bytes = f.read()
+        
+        # Clean up temp file
+        temp_path.unlink()
+        
+        print(f"[Orpheus TTS] Speech generated successfully ({len(audio_bytes)} bytes)")
+        return audio_bytes
+        
+    except Exception as e:
+        print(f"[Orpheus TTS] Error: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def _clean(text: str) -> str:
@@ -167,19 +224,42 @@ def analyze_image(image, voice_question, text_question):
 # ── Tab 2: Image Generation ──────────────────────────────────────────────────
 def generate_image(prompt: str):
     """
-    Calls Pollinations.ai (free, no API key) to generate an image from a prompt.
+    Calls Hugging Face Stable Diffusion for AI image generation.
     Returns: (PIL.Image | None, status_text)
     """
     if not prompt or not prompt.strip():
         return None, "Please enter a description."
     try:
-        url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt.strip())}"
-        r = requests.get(url, timeout=60)
+        print(f"[Image Gen] Generating with Hugging Face: {prompt.strip()}")
+        
+        # Use Hugging Face FLUX.2-dev for better quality
+        headers = {
+            "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
+        }
+        
+        payload = {
+            "inputs": prompt.strip()
+        }
+        
+        r = requests.post(
+            "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
+            headers=headers,
+            json=payload,
+            timeout=90
+        )
+        
+        print(f"[Image Gen] Response status: {r.status_code}")
+        
         if r.status_code == 200:
             img = Image.open(BytesIO(r.content))
             return img, f'Generated: "{prompt.strip()}"'
-        return None, f"Error {r.status_code}: {r.text}"
+        elif r.status_code == 503:
+            return None, "Model is loading, please wait and try again..."
+        else:
+            print(f"[Image Gen] Error: {r.text}")
+            return None, f"Error {r.status_code}: Please try again"
     except Exception as e:
+        print(f"[Image Gen] Exception: {e}")
         return None, f"Error: {e}"
 
 # ── Tab 3: AI Chat ───────────────────────────────────────────────────────────
@@ -262,7 +342,7 @@ with gr.Blocks(title="AI Demo App") as demo:
         with gr.Tab("🎨 Image Generation"):
             gr.Markdown(
                 "### Generate images from text\n"
-                "Powered by [Pollinations.ai](https://pollinations.ai) — free, no API key required."
+                "Powered by [Stable Diffusion XL](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) — high-quality AI image generation."
             )
             with gr.Row():
                 with gr.Column(scale=1):
@@ -299,8 +379,142 @@ with gr.Blocks(title="AI Demo App") as demo:
 
 # ── Entry Point ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    from flask import Flask, request, Response
+    from flask_cors import CORS
+    import threading
+    
+    # Create Flask app for REST API
+    app = Flask(__name__)
+    CORS(app)  # Enable CORS for all routes
+    
+    @app.route('/api/generate-image', methods=['POST', 'OPTIONS'])
+    def generate_image_endpoint():
+        """REST API endpoint for image generation"""
+        # Handle preflight request
+        if request.method == 'OPTIONS':
+            response = Response()
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+            return response
+            
+        try:
+            data = request.get_json()
+            prompt = data.get('prompt', '')
+            if not prompt:
+                return {'error': 'No prompt provided'}, 400
+            
+            print(f"[Image API] Generating image for: {prompt}")
+            
+            # Generate image using Hugging Face
+            headers = {
+                "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
+            }
+            
+            payload = {
+                "inputs": prompt.strip()
+            }
+            
+            # Try working models - FLUX might not be available via API
+            models = [
+                "stabilityai/stable-diffusion-xl-base-1.0",
+                "runwayml/stable-diffusion-v1-5",
+                "CompVis/stable-diffusion-v1-4"
+            ]
+            
+            r = None
+            for model in models:
+                try:
+                    print(f"[Image API] Trying model: {model}")
+                    r = requests.post(
+                        f"https://api-inference.huggingface.co/models/{model}",
+                        headers=headers,
+                        json=payload,
+                        timeout=90
+                    )
+                    if r.status_code == 200:
+                        print(f"[Image API] Success with model: {model}")
+                        break
+                    elif r.status_code == 503:
+                        print(f"[Image API] Model {model} is loading, trying next...")
+                        continue
+                    else:
+                        print(f"[Image API] Model {model} failed with {r.status_code}: {r.text}")
+                        continue
+                except Exception as e:
+                    print(f"[Image API] Model {model} exception: {e}")
+                    continue
+            
+            print(f"[Image API] Response status: {r.status_code if r else 'No response'}")
+            
+            if r and r.status_code == 200:
+                response = Response(r.content, mimetype='image/jpeg')
+                response.headers['Access-Control-Allow-Origin'] = '*'
+                return response
+            elif r and r.status_code == 503:
+                return {'error': 'All models are loading, please wait and try again...'}, 503
+            else:
+                # Fallback to Pollinations.ai if Hugging Face fails
+                print("[Image API] Hugging Face failed, trying Pollinations.ai fallback...")
+                try:
+                    fallback_url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt.strip())}"
+                    fallback_r = requests.get(fallback_url, timeout=30)
+                    if fallback_r.status_code == 200:
+                        print("[Image API] Fallback successful")
+                        response = Response(fallback_r.content, mimetype='image/jpeg')
+                        response.headers['Access-Control-Allow-Origin'] = '*'
+                        return response
+                except Exception as fallback_e:
+                    print(f"[Image API] Fallback also failed: {fallback_e}")
+                
+                error_text = r.text if r else 'No models available'
+                print(f"[Image API] Error response: {error_text}")
+                return {'error': f'Generation failed: {r.status_code if r else "No response"}'}, 500
+                
+        except Exception as e:
+            print(f"[Image API Error] {e}")
+            import traceback
+            traceback.print_exc()
+            return {'error': str(e)}, 500
+    
+    @app.route('/api/arabic-tts', methods=['POST', 'OPTIONS'])
+    def arabic_tts_endpoint():
+        """REST API endpoint for Arabic TTS"""
+        # Handle preflight request
+        if request.method == 'OPTIONS':
+            response = Response()
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+            return response
+            
+        try:
+            data = request.get_json()
+            text = data.get('text', '')
+            if not text:
+                return {'error': 'No text provided'}, 400
+            
+            audio_bytes = _arabic_tts(text)
+            if audio_bytes:
+                response = Response(audio_bytes, mimetype='audio/wav')
+                response.headers['Access-Control-Allow-Origin'] = '*'
+                return response
+            else:
+                return {'error': 'Failed to generate speech'}, 500
+        except Exception as e:
+            print(f"[API Error] {e}")
+            return {'error': str(e)}, 500
+    
+    # Run Flask in a separate thread
+    def run_flask():
+        app.run(host='0.0.0.0', port=7863, debug=False)
+    
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
     print("=" * 50)
     print("AI Demo App — Gradio Backend")
-    print("URL: http://localhost:7862")
+    print("Gradio UI: http://localhost:7862")
+    print("Arabic TTS API: http://localhost:7863/api/arabic-tts")
     print("=" * 50)
     demo.launch(server_name="0.0.0.0", server_port=7862, show_error=True, theme=gr.themes.Soft())

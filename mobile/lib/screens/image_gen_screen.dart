@@ -1,5 +1,7 @@
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import '../theme/app_colors.dart';
 import '../widgets/prompt_card.dart';
@@ -51,24 +53,33 @@ class _ImageGenScreenState extends State<ImageGenScreen> {
       return;
     }
     _focusNode.unfocus();
-    setState(() { _loading = true; _status = ''; _imageBytes = null; });
+    setState(() { _loading = true; _status = 'Generating AI image...'; _imageBytes = null; });
 
     try {
-      final seed = prompt.hashCode.abs() % 1000;
-      final url  = 'https://picsum.photos/seed/$seed/1024/1024';
-      final response = await http.get(Uri.parse(url))
-          .timeout(const Duration(seconds: 30));
+      debugPrint('[Image Gen] Generating: $prompt');
+      
+      // Use backend API for image generation
+      final response = await http.post(
+        Uri.parse('http://localhost:7863/api/generate-image'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'prompt': prompt}),
+      ).timeout(const Duration(seconds: 90));
+
+      debugPrint('[Image Gen] Status: ${response.statusCode}');
+      debugPrint('[Image Gen] Size: ${response.bodyBytes.length} bytes');
 
       if (response.statusCode == 200) {
         setState(() {
           _imageBytes = response.bodyBytes;
-          _status     = 'Generated for: "$prompt"';
+          _status     = 'Generated: "$prompt"';
           _loading    = false;
         });
       } else {
-        setState(() { _status = 'Error ${response.statusCode}'; _loading = false; });
+        final error = jsonDecode(response.body)['error'] ?? 'Unknown error';
+        setState(() { _status = 'Error: $error'; _loading = false; });
       }
     } catch (e) {
+      debugPrint('[Image Gen] Error: $e');
       setState(() { _status = 'Error: $e'; _loading = false; });
     }
   }
@@ -85,7 +96,7 @@ class _ImageGenScreenState extends State<ImageGenScreen> {
                     letterSpacing: 0.5)),
             Text('Placeholder images (demo)',
                 style: TextStyle(fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.5), letterSpacing: 0.5)),
+                    color: Colors.white.withOpacity(0.5), letterSpacing: 0.5)),
           ],
         ),
       ),

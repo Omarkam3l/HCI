@@ -56,17 +56,17 @@ class _LandingScreenState extends State<LandingScreen>
           Positioned(
             top: -80,
             left: -60,
-            child: _GlowOrb(size: 280, color: AppColors.primary.withValues(alpha: 0.18)),
+            child: _GlowOrb(size: 280, color: AppColors.primary.withOpacity(0.18)),
           ),
           Positioned(
             bottom: 60,
             right: -80,
-            child: _GlowOrb(size: 240, color: const Color(0xFFFFD1DC).withValues(alpha: 0.12)),
+            child: _GlowOrb(size: 240, color: const Color(0xFFFFD1DC).withOpacity(0.12)),
           ),
           Positioned(
             top: size.height * 0.4,
             left: size.width * 0.5,
-            child: _GlowOrb(size: 160, color: AppColors.accent.withValues(alpha: 0.08)),
+            child: _GlowOrb(size: 160, color: AppColors.accent.withOpacity(0.08)),
           ),
 
           // ── Main content ──────────────────────────────────────────────────
@@ -112,7 +112,7 @@ class _LandingScreenState extends State<LandingScreen>
                       'Vision · Image Gen · Social Bridge',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.45),
+                        color: Colors.white.withOpacity(0.45),
                         letterSpacing: 2,
                         fontWeight: FontWeight.w400,
                       ),
@@ -153,7 +153,7 @@ class _LandingScreenState extends State<LandingScreen>
                       'Powered by Groq · Llama · Pollinations',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.white.withValues(alpha: 0.25),
+                        color: Colors.white.withOpacity(0.25),
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -183,7 +183,7 @@ class _LogoBadge extends StatelessWidget {
         gradient: AppColors.primaryGradient,
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.5),
+            color: AppColors.primary.withOpacity(0.5),
             blurRadius: 40,
             spreadRadius: 4,
           ),
@@ -246,10 +246,10 @@ class _FeatureCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: feature.color.withValues(alpha: 0.2)),
+        border: Border.all(color: feature.color.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
-            color: feature.color.withValues(alpha: 0.08),
+            color: feature.color.withOpacity(0.08),
             blurRadius: 16,
             spreadRadius: 1,
           ),
@@ -261,7 +261,7 @@ class _FeatureCard extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: feature.color.withValues(alpha: 0.12),
+              color: feature.color.withOpacity(0.12),
             ),
             child: Icon(feature.icon, color: feature.color, size: 22),
           ),
@@ -281,7 +281,7 @@ class _FeatureCard extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 10,
-              color: Colors.white.withValues(alpha: 0.4),
+              color: Colors.white.withOpacity(0.4),
               height: 1.5,
               letterSpacing: 0.3,
             ),
@@ -336,7 +336,7 @@ class _EnterButtonState extends State<_EnterButton>
               gradient: AppColors.buttonGradient,
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.45),
+                  color: AppColors.primary.withOpacity(0.45),
                   blurRadius: 24,
                   spreadRadius: 1,
                 ),
@@ -358,9 +358,9 @@ class _EnterButtonState extends State<_EnterButton>
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              Colors.white.withValues(alpha: 0),
-                              Colors.white.withValues(alpha: 0.12),
-                              Colors.white.withValues(alpha: 0),
+                              Colors.white.withOpacity(0),
+                              Colors.white.withOpacity(0.12),
+                              Colors.white.withOpacity(0),
                             ],
                           ),
                         ),

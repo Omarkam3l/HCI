@@ -58,45 +58,54 @@ class AiService {
     }
     try {
       final b64 = base64Encode(imageBytes);
+      final requestBody = {
+        'model': ApiConfig.visionModel,
+        'messages': [
+          {
+            'role': 'user',
+            'content': [
+              {'type': 'text', 'text': question},
+              {
+                'type': 'image_url',
+                'image_url': {'url': 'data:image/jpeg;base64,$b64'},
+              },
+            ],
+          },
+        ],
+        'max_tokens': 1024,
+        'temperature': 0.5,
+      };
+      
+      print('Sending request to: ${ApiConfig.groqEndpoint}');
+      print('Model: ${ApiConfig.visionModel}');
+      
       final response = await http
           .post(
             Uri.parse(ApiConfig.groqEndpoint),
             headers: ApiConfig.headers,
-            body: jsonEncode({
-              'model': ApiConfig.visionModel,
-              'messages': [
-                {
-                  'role': 'system',
-                  'content':
-                      'You are an accessibility assistant for blind and visually impaired people. '
-                      'Describe images in rich, clear detail. No markdown.',
-                },
-                {
-                  'role': 'user',
-                  'content': [
-                    {'type': 'text', 'text': question},
-                    {
-                      'type': 'image_url',
-                      'image_url': {'url': 'data:image/jpeg;base64,$b64'},
-                    },
-                  ],
-                },
-              ],
-              'max_tokens': 1024,
-              'temperature': 0.5,
-            }),
+            body: jsonEncode(requestBody),
           )
           .timeout(const Duration(seconds: 30));
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data['choices'][0]['message']['content'] as String;
       }
-      return ApiConfig.parseError(response.statusCode, response.body);
-    } on http.ClientException {
-      return 'Network error. Check your connection and try again.';
+      
+      // Return detailed error for debugging
+      try {
+        final errorData = jsonDecode(response.body);
+        return 'API Error (${response.statusCode}): ${errorData['error']?['message'] ?? response.body}';
+      } catch (_) {
+        return 'API Error (${response.statusCode}): ${response.body}';
+      }
+    } on http.ClientException catch (e) {
+      return 'Network error: $e';
     } catch (e) {
-      return 'Something went wrong. Please try again.';
+      return 'Error: $e';
     }
   }
 
@@ -109,6 +118,11 @@ class AiService {
         .replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1')
         .replaceAll(RegExp(r'\*([^*]+)\*'), r'$1')
         .replaceAll(RegExp(r'#{1,6}\s*'), '')
+        .replaceAll(RegExp(r'\$1\s*\$1\s*'), '') // Remove double $1 $1
+        .replaceAll(RegExp(r'^\$1\s*'), '') // Remove $1 at start of line
+        .replaceAll(RegExp(r'\s*\$1\s*'), ' ') // Replace $1 with space
+        .replaceAll(RegExp(r'\*\s*\$1\s*'), '* ') // Fix bullet points with $1
+        .replaceAll(RegExp(r'\s+'), ' ') // Normalize whitespace
         .trim();
   }
 }

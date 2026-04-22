@@ -174,7 +174,7 @@ class _SocialLoungeScreenState extends State<SocialLoungeScreen>
                 'Inclusive AI Lounge',
                 style: TextStyle(
                   fontSize: 10,
-                  color: Colors.white.withValues(alpha: 0.45),
+                  color: Colors.white.withOpacity(0.45),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -199,7 +199,7 @@ class _SocialLoungeScreenState extends State<SocialLoungeScreen>
               decoration: BoxDecoration(
                 color: _pinkDim,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _pink.withValues(alpha: 0.3)),
+                border: Border.all(color: _pink.withOpacity(0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -281,7 +281,7 @@ class _SocialLoungeScreenState extends State<SocialLoungeScreen>
             'Type, speak, or share an image\nto start connecting',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.4),
+              color: Colors.white.withOpacity(0.4),
               fontSize: 13,
               height: 1.6,
               letterSpacing: 0.5,
@@ -319,7 +319,7 @@ class _SocialLoungeScreenState extends State<SocialLoungeScreen>
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.navBar.withValues(alpha: 0.85),
+            color: AppColors.navBar.withOpacity(0.85),
             border: const Border(
               top: BorderSide(color: AppColors.borderSubtle),
             ),
@@ -437,7 +437,7 @@ class _LoungeBubble extends StatelessWidget {
                 ? AppColors.subtleGlow
                 : [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
+                      color: Colors.black.withOpacity(0.2),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -471,7 +471,7 @@ class _LoungeBubble extends StatelessWidget {
                   ResponseCleaner.clean(message.content),
                   color: _isUser
                       ? Colors.white
-                      : Colors.white.withValues(alpha: 0.85),
+                      : Colors.white.withOpacity(0.85),
                 ),
 
               // Voice origin indicator
@@ -482,13 +482,13 @@ class _LoungeBubble extends StatelessWidget {
                   children: [
                     Icon(Icons.graphic_eq_rounded,
                         size: 13,
-                        color: Colors.white.withValues(alpha: 0.5)),
+                        color: Colors.white.withOpacity(0.5)),
                     const SizedBox(width: 4),
                     Text(
                       'Voice message',
                       style: TextStyle(
                         fontSize: 10,
-                        color: Colors.white.withValues(alpha: 0.5),
+                        color: Colors.white.withOpacity(0.5),
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -507,13 +507,13 @@ class _LoungeBubble extends StatelessWidget {
                     children: [
                       Icon(Icons.volume_up_rounded,
                           size: 13,
-                          color: _pink.withValues(alpha: 0.7)),
+                          color: _pink.withOpacity(0.7)),
                       const SizedBox(width: 4),
                       Text(
                         'Read aloud',
                         style: TextStyle(
                           fontSize: 10,
-                          color: _pink.withValues(alpha: 0.7),
+                          color: _pink.withOpacity(0.7),
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -535,7 +535,7 @@ class _LoungeBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: _pinkDim,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _pink.withValues(alpha: 0.3)),
+          border: Border.all(color: _pink.withOpacity(0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -614,7 +614,7 @@ class _ThinkingBubbleState extends State<_ThinkingBubble>
               children: [
                 Icon(Icons.shutter_speed_rounded,
                     size: 18,
-                    color: _pink.withValues(alpha: _anim.value)),
+                    color: _pink.withOpacity(_anim.value)),
                 const SizedBox(width: 8),
                 const Text(
                   'Community Heart is thinking...',
@@ -648,7 +648,7 @@ class _EmotionTag extends StatelessWidget {
         decoration: BoxDecoration(
           color: _pinkDim,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _pink.withValues(alpha: 0.3)),
+          border: Border.all(color: _pink.withOpacity(0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -692,9 +692,9 @@ class _AiStateChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 4),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -729,9 +729,9 @@ class _AccessBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        border: Border.all(color: color.withOpacity(0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -784,12 +784,12 @@ class _VoiceMicButton extends StatelessWidget {
             border: Border.all(
               color: isRecording
                   ? Colors.redAccent
-                  : _pink.withValues(alpha: 0.4),
+                  : _pink.withOpacity(0.4),
             ),
             boxShadow: isRecording
                 ? [
                     BoxShadow(
-                      color: Colors.redAccent.withValues(alpha: 0.4),
+                      color: Colors.redAccent.withOpacity(0.4),
                       blurRadius: 14,
                       spreadRadius: 1,
                     ),
@@ -824,8 +824,8 @@ class _IconCircleBtn extends StatelessWidget {
         height: 46,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: color.withValues(alpha: 0.12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          color: color.withOpacity(0.12),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Icon(icon, color: color, size: 20),
       ),

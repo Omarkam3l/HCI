@@ -23,7 +23,7 @@ class GlassNavBar extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.navBar.withValues(alpha: 0.75),
+              color: AppColors.navBar.withOpacity(0.75),
               borderRadius: BorderRadius.circular(28),
               border: Border.all(color: AppColors.borderMid),
               boxShadow: AppColors.primaryGlow,
@@ -32,7 +32,7 @@ class GlassNavBar extends StatelessWidget {
               selectedIndex: selectedIndex,
               onDestinationSelected: onDestinationSelected,
               backgroundColor: Colors.transparent,
-              indicatorColor: AppColors.primary.withValues(alpha: 0.85),
+              indicatorColor: AppColors.primary.withOpacity(0.85),
               elevation: 0,
               height: 64,
               destinations: const [

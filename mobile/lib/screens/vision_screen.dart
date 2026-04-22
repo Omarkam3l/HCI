@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../theme/app_colors.dart';
@@ -42,6 +43,13 @@ class _VisionScreenState extends State<VisionScreen>
     super.initState();
     VoiceController.initStt();
     VoiceController.initTts();
+    
+    // Print available voices for debugging
+    if (kIsWeb) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        VoiceController.printAvailableVoices();
+      });
+    }
 
     _scanCtrl = AnimationController(
       vsync: this,
@@ -63,12 +71,15 @@ class _VisionScreenState extends State<VisionScreen>
   // ── Image Picker ──────────────────────────────────────────────────────────
 
   Future<void> _pickImage(ImageSource source) async {
-    final perm = source == ImageSource.camera
-        ? await Permission.camera.request()
-        : await Permission.photos.request();
-    if (perm.isDenied || perm.isPermanentlyDenied) {
-      _snack('Permission denied. Enable it in Settings.');
-      return;
+    // Skip permission check on web - not supported
+    if (!kIsWeb) {
+      final perm = source == ImageSource.camera
+          ? await Permission.camera.request()
+          : await Permission.photos.request();
+      if (perm.isDenied || perm.isPermanentlyDenied) {
+        _snack('Permission denied. Enable it in Settings.');
+        return;
+      }
     }
     final xfile = await _picker.pickImage(
       source: source,
@@ -146,10 +157,22 @@ class _VisionScreenState extends State<VisionScreen>
       setState(() => _speaking = false);
       return;
     }
+    
+    if (_answer.isEmpty) {
+      _snack('No text to read');
+      return;
+    }
+    
     setState(() => _speaking = true);
-    await VoiceController.speak(_answer, onComplete: () {
-      if (mounted) setState(() => _speaking = false);
-    });
+    try {
+      await VoiceController.speak(_answer, onComplete: () {
+        if (mounted) setState(() => _speaking = false);
+      });
+    } catch (e) {
+      debugPrint('[Vision] TTS Error: $e');
+      _snack('Voice reading failed. Check browser permissions.');
+      setState(() => _speaking = false);
+    }
   }
 
   // ── Analyze ───────────────────────────────────────────────────────────────
@@ -216,7 +239,7 @@ class _VisionScreenState extends State<VisionScreen>
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
                   letterSpacing: 0.5)),
           Text('For visually impaired users',
-              style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.5),
+              style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5),
                   letterSpacing: 0.5)),
         ],
       ),
@@ -251,12 +274,12 @@ class _VisionScreenState extends State<VisionScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.filter_center_focus_rounded,
-                        size: 64, color: Colors.white.withValues(alpha: 0.15)),
+                        size: 64, color: Colors.white.withOpacity(0.15)),
                     const SizedBox(height: 10),
                     Text(
                       'Tap to add an image',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.3),
+                        color: Colors.white.withOpacity(0.3),
                         fontSize: 13,
                         letterSpacing: 0.5,
                       ),
@@ -278,13 +301,13 @@ class _VisionScreenState extends State<VisionScreen>
                         gradient: LinearGradient(
                           colors: [
                             Colors.transparent,
-                            AppColors.primary.withValues(alpha: 0.9),
+                            AppColors.primary.withOpacity(0.9),
                             Colors.transparent,
                           ],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.6),
+                            color: AppColors.primary.withOpacity(0.6),
                             blurRadius: 8,
                           ),
                         ],
@@ -296,7 +319,7 @@ class _VisionScreenState extends State<VisionScreen>
               // "Analyzing" overlay
               if (_loading)
                 Container(
-                  color: Colors.black.withValues(alpha: 0.35),
+                  color: Colors.black.withOpacity(0.35),
                   child: const Center(
                     child: Text(
                       'Analyzing...',
@@ -450,7 +473,7 @@ class _VisionScreenState extends State<VisionScreen>
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.15),
+                    color: AppColors.primary.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -521,7 +544,7 @@ class _SheetTile extends StatelessWidget {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.15),
+          color: AppColors.primary.withOpacity(0.15),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, color: AppColors.primary2, size: 20),
@@ -585,7 +608,7 @@ class _MicButton extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: (listening ? Colors.redAccent : AppColors.primary)
-                  .withValues(alpha: 0.4),
+                  .withOpacity(0.4),
               blurRadius: 12,
               spreadRadius: 1,
             ),

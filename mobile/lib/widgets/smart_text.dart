@@ -77,7 +77,7 @@ class SmartChatText extends StatelessWidget {
       style: TextStyle(
         fontSize: fontSize,
         height: 1.6,
-        color: color ?? Colors.white.withValues(alpha: 0.85),
+        color: color ?? Colors.white.withOpacity(0.85),
         letterSpacing: 0.3,
       ),
     );

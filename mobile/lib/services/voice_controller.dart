@@ -2,6 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'bilingual_helper.dart';
+import 'arabic_tts_service.dart';
+import 'api_config.dart';
+
+// Conditional import for web
+import 'dart:html' as html if (dart.library.io) 'dart:io';
 
 /// Bilingual Voice Controller — manages STT and TTS with automatic language switching.
 ///
@@ -75,33 +80,184 @@ class VoiceController {
   ///
   /// If the text contains Arabic characters, switches to `ar-SA`.
   /// Otherwise, uses `en-US`.
+  /// 
+  /// For Arabic: Uses Hugging Face Orpheus model if API key is set,
+  /// otherwise falls back to browser voices.
   static Future<void> speak(String text, {void Function()? onComplete}) async {
-    await initTts();
-
-    // Auto-detect language and switch TTS locale
+    if (text.isEmpty) {
+      debugPrint('[TTS] Empty text, skipping');
+      onComplete?.call();
+      return;
+    }
+    
+    // Auto-detect language
     final isArabic = BilingualHelper.isArabic(text);
     final locale = isArabic ? 'ar-SA' : 'en-US';
     
-    await _tts.setLanguage(locale);
+    debugPrint('[TTS] Detected language: ${isArabic ? "Arabic" : "English"}');
     
-    // Adjust speech rate for Arabic (slightly slower for clarity)
-    if (isArabic) {
-      await _tts.setSpeechRate(0.45);
+    // For Arabic on web, try backend TTS first
+    if (isArabic && kIsWeb && ApiConfig.isArabicTtsEnabled) {
+      debugPrint('[TTS] Using Backend Orpheus Arabic TTS');
+      try {
+        await ArabicTtsService.speak(text, onComplete: onComplete);
+        return;
+      } catch (e) {
+        debugPrint('[TTS] Backend TTS failed, falling back to browser: $e');
+        // Fall through to browser TTS
+      }
+    }
+    
+    // Use Web Speech API on web for better Arabic support
+    if (kIsWeb) {
+      try {
+        debugPrint('[TTS] Using Web Speech API for: "${text.substring(0, text.length > 30 ? 30 : text.length)}..."');
+        
+        final speechSynthesis = html.window.speechSynthesis;
+        final utterance = html.SpeechSynthesisUtterance(text);
+        
+        // Get available voices and select the best one for the language
+        final voices = speechSynthesis!.getVoices();
+        
+        if (isArabic) {
+          // Priority list for best Arabic voices (free, built-in)
+          // Microsoft Edge has excellent Arabic voices
+          final preferredVoiceNames = [
+            'Microsoft Hamed - Arabic (Saudi Arabia)',
+            'Microsoft Naayf - Arabic (Saudi Arabia)', 
+            'Google العربية',
+            'Microsoft Salim - Arabic (Saudi Arabia)',
+            'Arabic Saudi Arabia',
+          ];
+          
+          html.SpeechSynthesisVoice? selectedVoice;
+          
+          // Try to find preferred voices first
+          for (var preferredName in preferredVoiceNames) {
+            selectedVoice = voices.firstWhere(
+              (v) => v.name!.contains(preferredName) || v.name == preferredName,
+              orElse: () => voices.first,
+            );
+            if (selectedVoice.name != voices.first.name) break;
+          }
+          
+          // Fallback: find any Arabic voice
+          if (selectedVoice == null || selectedVoice.name == voices.first.name) {
+            selectedVoice = voices.firstWhere(
+              (v) => v.lang == 'ar-SA',
+              orElse: () => voices.firstWhere(
+                (v) => v.lang == 'ar-EG',
+                orElse: () => voices.firstWhere(
+                  (v) => v.lang!.startsWith('ar'),
+                  orElse: () => voices.first,
+                ),
+              ),
+            );
+          }
+          
+          utterance.voice = selectedVoice;
+          utterance.lang = selectedVoice.lang ?? 'ar-SA';
+          utterance.rate = 0.85;
+          debugPrint('[TTS] Selected Arabic voice: ${selectedVoice.name} (${selectedVoice.lang})');
+        } else {
+          // Try to find a good English voice
+          final preferredEnglishVoices = [
+            'Microsoft Zira - English (United States)',
+            'Google US English',
+            'Microsoft David - English (United States)',
+          ];
+          
+          html.SpeechSynthesisVoice? selectedVoice;
+          
+          for (var preferredName in preferredEnglishVoices) {
+            selectedVoice = voices.firstWhere(
+              (v) => v.name!.contains(preferredName) || v.name == preferredName,
+              orElse: () => voices.first,
+            );
+            if (selectedVoice.name != voices.first.name) break;
+          }
+          
+          if (selectedVoice == null || selectedVoice.name == voices.first.name) {
+            selectedVoice = voices.firstWhere(
+              (v) => v.lang == 'en-US',
+              orElse: () => voices.firstWhere(
+                (v) => v.lang!.startsWith('en'),
+                orElse: () => voices.first,
+              ),
+            );
+          }
+          
+          utterance.voice = selectedVoice;
+          utterance.lang = selectedVoice.lang ?? 'en-US';
+          utterance.rate = 0.9;
+          debugPrint('[TTS] Selected English voice: ${selectedVoice.name} (${selectedVoice.lang})');
+        }
+        
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        utterance.onEnd.listen((_) {
+          debugPrint('[TTS] Web Speech completed');
+          onComplete?.call();
+        });
+        
+        utterance.onError.listen((error) {
+          debugPrint('[TTS] Web Speech error: $error');
+          onComplete?.call();
+        });
+        
+        speechSynthesis.speak(utterance);
+        debugPrint('[TTS] Web Speech started');
+      } catch (e) {
+        debugPrint('[TTS] Web Speech API error: $e');
+        onComplete?.call();
+      }
     } else {
-      await _tts.setSpeechRate(0.5);
-    }
+      // Use flutter_tts for mobile platforms
+      await initTts();
+      
+      try {
+        await _tts.setLanguage(locale);
+        
+        // Adjust speech rate for Arabic (slightly slower for clarity)
+        if (isArabic) {
+          await _tts.setSpeechRate(0.45);
+        } else {
+          await _tts.setSpeechRate(0.5);
+        }
 
-    debugPrint('[TTS] Speaking in $locale: "${text.substring(0, text.length > 30 ? 30 : text.length)}..."');
+        debugPrint('[TTS] Speaking in $locale: "${text.substring(0, text.length > 30 ? 30 : text.length)}..."');
 
-    if (onComplete != null) {
-      _tts.setCompletionHandler(onComplete);
+        if (onComplete != null) {
+          _tts.setCompletionHandler(onComplete);
+        }
+        
+        final result = await _tts.speak(text);
+        debugPrint('[TTS] Speak result: $result');
+        
+        if (result == 0) {
+          debugPrint('[TTS] Failed to speak - result code 0');
+          onComplete?.call();
+        }
+      } catch (e) {
+        debugPrint('[TTS] Error: $e');
+        onComplete?.call();
+      }
     }
-    await _tts.speak(text);
   }
 
   /// Stop any ongoing speech.
   static Future<void> stop() async {
-    await _tts.stop();
+    if (kIsWeb) {
+      try {
+        html.window.speechSynthesis?.cancel();
+        debugPrint('[TTS] Web Speech cancelled');
+      } catch (e) {
+        debugPrint('[TTS] Error cancelling Web Speech: $e');
+      }
+    } else {
+      await _tts.stop();
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -118,4 +274,34 @@ class VoiceController {
 
   /// Get the current STT locale.
   static String get currentSttLocale => _currentSttLocale;
+  
+  /// Get available TTS voices (web only, for debugging).
+  static List<String> getAvailableVoices() {
+    if (!kIsWeb) return [];
+    try {
+      final voices = html.window.speechSynthesis!.getVoices();
+      return voices.map((v) => '${v.name} (${v.lang})').toList();
+    } catch (e) {
+      debugPrint('[TTS] Error getting voices: $e');
+      return [];
+    }
+  }
+  
+  /// Print available voices to console (for debugging).
+  static void printAvailableVoices() {
+    if (!kIsWeb) {
+      debugPrint('[TTS] Voice listing only available on web');
+      return;
+    }
+    try {
+      final voices = html.window.speechSynthesis!.getVoices();
+      debugPrint('[TTS] Available voices (${voices.length}):');
+      for (var voice in voices) {
+        final isLocal = voice.localService == true ? "[Local]" : "[Remote]";
+        debugPrint('  - ${voice.name} (${voice.lang}) $isLocal');
+      }
+    } catch (e) {
+      debugPrint('[TTS] Error listing voices: $e');
+    }
+  }
 }
