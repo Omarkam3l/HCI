@@ -26,7 +26,7 @@ load_dotenv()
 GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "your_groq_api_key_here")
 HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "your_huggingface_api_key_here")
 GROQ_API_URL  = "https://api.groq.com/openai/v1/chat/completions"
-CHAT_MODEL    = "llama3-70b-8192"
+CHAT_MODEL    = "llama-3.3-70b-versatile"
 VISION_MODEL  = "meta-llama/llama-4-scout-17b-16e-instruct"
 # Using a working Arabic TTS model from Hugging Face
 ARABIC_TTS_URL = "https://api-inference.huggingface.co/models/facebook/mms-tts-ara"
@@ -53,6 +53,21 @@ def _transcribe(audio_path: str) -> str:
         return result["text"].strip()
     except Exception as e:
         print(f"[Whisper] Error: {e}")
+        return ""
+
+def _transcribe_and_translate(audio_path: str) -> str:
+    """Whisper STT with translation: audio file → English text.
+    Automatically detects language and translates to English if needed."""
+    if not audio_path:
+        return ""
+    try:
+        model = _load_whisper()
+        # Transcribe with language detection
+        result = model.transcribe(audio_path, task="translate")
+        # Whisper's 'translate' task automatically translates to English
+        return result["text"].strip()
+    except Exception as e:
+        print(f"[Whisper Translate] Error: {e}")
         return ""
 
 def _tts(text: str) -> str | None:
@@ -406,6 +421,26 @@ if __name__ == "__main__":
             
             print(f"[Image API] Generating image for: {prompt}")
             
+            # Auto-translate Arabic to English before generating
+            import re
+            has_arabic = bool(re.search(r'[\u0600-\u06FF]', prompt))
+            if has_arabic:
+                print(f"[Image API] Detected Arabic, translating...")
+                translated = _groq_chat([
+                    {"role": "system", "content": (
+                        "You are an AI image prompt translator. "
+                        "The user writes an Arabic description of an image they want to generate. "
+                        "Your job is to: 1) Understand the intended meaning even if the Arabic has typos or is incomplete. "
+                        "2) Translate it into a clear, detailed English image generation prompt. "
+                        "3) Never transliterate Arabic words - always translate their meaning. "
+                        "Return ONLY the English prompt, nothing else."
+                    )},
+                    {"role": "user", "content": prompt}
+                ], max_tokens=256)
+                if translated and not translated.startswith('Error'):
+                    print(f"[Image API] Translated: {translated.strip()}")
+                    prompt = translated.strip()
+            
             # Generate image using Hugging Face
             headers = {
                 "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
@@ -457,15 +492,25 @@ if __name__ == "__main__":
                 # Fallback to Pollinations.ai if Hugging Face fails
                 print("[Image API] Hugging Face failed, trying Pollinations.ai fallback...")
                 try:
-                    fallback_url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt.strip())}"
-                    fallback_r = requests.get(fallback_url, timeout=30)
-                    if fallback_r.status_code == 200:
-                        print("[Image API] Fallback successful")
-                        response = Response(fallback_r.content, mimetype='image/jpeg')
-                        response.headers['Access-Control-Allow-Origin'] = '*'
-                        return response
+                    encoded = urllib.parse.quote(prompt.strip())
+                    # Try multiple Pollinations endpoints
+                    fallback_urls = [
+                        f"https://image.pollinations.ai/prompt/{encoded}?width=512&height=512&nologo=true",
+                        f"https://image.pollinations.ai/prompt/{encoded}",
+                    ]
+                    for fallback_url in fallback_urls:
+                        try:
+                            fallback_r = requests.get(fallback_url, timeout=60)
+                            if fallback_r.status_code == 200 and len(fallback_r.content) > 1000:
+                                print("[Image API] Fallback successful")
+                                response = Response(fallback_r.content, mimetype='image/jpeg')
+                                response.headers['Access-Control-Allow-Origin'] = '*'
+                                return response
+                        except Exception as fe:
+                            print(f"[Image API] Fallback URL failed: {fe}")
+                            continue
                 except Exception as fallback_e:
-                    print(f"[Image API] Fallback also failed: {fallback_e}")
+                    print(f"[Image API] All fallbacks failed: {fallback_e}")
                 
                 error_text = r.text if r else 'No models available'
                 print(f"[Image API] Error response: {error_text}")
@@ -503,6 +548,110 @@ if __name__ == "__main__":
                 return {'error': 'Failed to generate speech'}, 500
         except Exception as e:
             print(f"[API Error] {e}")
+            return {'error': str(e)}, 500
+    
+    @app.route('/api/voice-to-prompt', methods=['POST', 'OPTIONS'])
+    def voice_to_prompt_endpoint():
+        """REST API endpoint for voice transcription and translation to English"""
+        # Handle preflight request
+        if request.method == 'OPTIONS':
+            response = Response()
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+            return response
+            
+        try:
+            # Check if audio file is in the request
+            if 'audio' not in request.files:
+                return {'error': 'No audio file provided'}, 400
+            
+            audio_file = request.files['audio']
+            if audio_file.filename == '':
+                return {'error': 'Empty filename'}, 400
+            
+            # Save the audio file temporarily
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_audio:
+                audio_file.save(temp_audio.name)
+                temp_path = temp_audio.name
+            
+            print(f"[Voice-to-Prompt] Processing audio file: {temp_path}")
+            
+            # Transcribe and translate to English
+            english_text = _transcribe_and_translate(temp_path)
+            
+            # Clean up temp file
+            import os
+            os.unlink(temp_path)
+            
+            if english_text:
+                print(f"[Voice-to-Prompt] Translated text: {english_text}")
+                response = {
+                    'prompt': english_text,
+                    'success': True
+                }
+                return response, 200
+            else:
+                return {'error': 'Failed to transcribe audio'}, 500
+                
+        except Exception as e:
+            print(f"[Voice-to-Prompt Error] {e}")
+            import traceback
+            traceback.print_exc()
+            return {'error': str(e)}, 500
+    
+    @app.route('/api/translate-text', methods=['POST', 'OPTIONS'])
+    def translate_text_endpoint():
+        """REST API endpoint for translating text to English using Groq"""
+        # Handle preflight request
+        if request.method == 'OPTIONS':
+            response = Response()
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+            return response
+            
+        try:
+            data = request.get_json()
+            text = data.get('text', '')
+            if not text:
+                return {'error': 'No text provided'}, 400
+            
+            print(f"[Translate] Translating text: {text[:50]}...")
+            
+            # Use Groq to translate
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an AI image prompt translator. "
+                        "The user writes an Arabic description of an image they want to generate. "
+                        "Your job is to: 1) Understand the intended meaning even if the Arabic has typos or is incomplete. "
+                        "2) Translate it into a clear, detailed English image generation prompt. "
+                        "3) Never transliterate Arabic words - always translate their meaning. "
+                        "For example: 'رف البان' means 'dairy products shelf', 'رف الألبان' means 'dairy shelf in supermarket'. "
+                        "Return ONLY the English prompt, nothing else."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": text
+                }
+            ]
+            
+            translated = _groq_chat(messages, max_tokens=512)
+            
+            if translated and not translated.startswith('Error'):
+                print(f"[Translate] Result: {translated}")
+                return {'translated': translated.strip(), 'success': True}, 200
+            else:
+                return {'error': 'Translation failed'}, 500
+                
+        except Exception as e:
+            print(f"[Translate Error] {e}")
+            import traceback
+            traceback.print_exc()
             return {'error': str(e)}, 500
     
     # Run Flask in a separate thread

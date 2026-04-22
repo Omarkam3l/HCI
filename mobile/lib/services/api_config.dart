@@ -2,18 +2,21 @@
 abstract class ApiConfig {
   // ── Groq (direct) ─────────────────────────────────────────────────────────
   static String groqApiKey =
-      'your_groq_api_key_here'; // Set your actual API key here
+      'your_groq_api_key_here'; // Set via environment or app config
 
   static const String groqEndpoint =
       'https://api.groq.com/openai/v1/chat/completions';
 
-  static const String chatModel   = 'qwen/qwen3-32b';
+  static const String chatModel   = 'llama-3.3-70b-versatile';
   static const String visionModel = "meta-llama/llama-4-scout-17b-16e-instruct";
 
   // ── Arabic TTS via Backend (gTTS - Google Text-to-Speech) ──────────────
   // Using gTTS through backend - free, reliable, high-quality
   static const String arabicTtsEndpoint = 'http://localhost:7863/api/arabic-tts';
   static bool get isArabicTtsEnabled => true; // Enabled with gTTS
+
+  // ── Voice to Prompt (Whisper STT with translation) ──────────────────────
+  static const String voiceToPromptEndpoint = 'http://localhost:7863/api/voice-to-prompt';
 
 
   // ── Python Gradio Backend ─────────────────────────────────────────────────
