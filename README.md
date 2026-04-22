@@ -76,7 +76,7 @@ A powerful Flutter web application featuring AI-powered vision assistance, image
 4. Replace the key in `lib/services/groq_service.dart`
 
 ```dart
-static const String _apiKey = 'gsk_YOUR_API_KEY_HERE';
+static const String _apiKey = 'YOUR_GROQ_API_KEY_HERE_API_KEY_HERE';
 ```
 
 ### Models Used
